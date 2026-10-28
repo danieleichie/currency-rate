@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto Agent</title>
+<style>
+:root{
+  --bg:#EEF2F1; --surface:#FFFFFF; --ink:#12263A; --muted:#5B6B7A; --rule:#D5DDDB;
+  --accent:#2B50F0; --on-accent:#FFFFFF; --gain:#0F7A55; --loss:#C2391F;
+  --serif: ui-serif, "New York", Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0E1A24; --surface:#152633; --ink:#E6EEF2; --muted:#93A4B1; --rule:#27394A;
+    --accent:#7C98FF; --on-accent:#0E1A24; --gain:#3DD598; --loss:#FF8A6B;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans)}
+.wrap{max-width:1200px;margin:0 auto;padding:24px}
+p{margin:0}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+.brand{font:600 22px/1.2 var(--serif);margin:0}
+#status{color:var(--muted);font-size:14px;max-width:64ch}
+#status.err{color:var(--loss)}
+.up{color:var(--gain)}.down{color:var(--loss)}
+.muted{color:var(--muted)}
+
+/* banner */
+.banner{padding:32px 0 0}
+.bgrid{display:grid;gap:24px;grid-template-columns:1fr;align-items:end}
+@media (min-width:860px){.bgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.who{color:var(--muted);margin-bottom:4px}
+.price{font:600 clamp(40px,8vw,64px)/1.05 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.chg{font-size:18px;font-variant-numeric:tabular-nums;margin-top:8px}
+.hspark .cap{color:var(--muted);font-size:14px;margin-bottom:8px}
+.hspark svg{display:block;width:100%;height:96px}
+.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:32px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.strip>div{padding:16px 16px 16px 0}
+.strip>div+div{padding-left:16px;border-left:1px solid var(--rule)}
+.strip .k{color:var(--muted);font-size:14px}
+.strip .v{font:600 clamp(18px,3vw,26px)/1.3 var(--sans);font-variant-numeric:tabular-nums}
+.strip .s{font-size:14px;font-variant-numeric:tabular-nums}
+
+/* search */
+.search{position:relative;margin:32px 0}
+.search .icon{position:absolute;left:16px;top:17px;width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round}
+.search input{width:100%;height:56px;padding:0 16px 0 52px;font-size:18px}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 8px);background:var(--surface);border:1px solid var(--rule);border-radius:8px;z-index:10;max-height:380px;overflow-y:auto}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--rule);cursor:pointer}
+.opt:last-child{border-bottom:0}
+.opt:hover,.opt[aria-selected="true"]{background:var(--bg)}
+.opt .otxt{flex:1;min-width:0}
+.opt .otxt strong{margin-right:8px}
+.sym{color:var(--muted);font-size:14px}
+.orank{color:var(--muted);font-size:14px}
+.smsg{padding:16px;color:var(--muted)}
+
+/* shared controls */
+button{font:inherit;cursor:pointer}
+input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:12px;min-width:0}
+.btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:12px 20px;font-weight:600}
+.btn:disabled{opacity:.6;cursor:wait}
+.link{background:none;border:0;color:var(--muted);padding:8px;text-decoration:underline}
+.link.on{color:var(--accent);font-weight:600}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.logo{width:28px;height:28px;border-radius:50%;flex:none}
+.logo.sm{width:24px;height:24px}
+
+/* detail */
+.detail{padding:24px 0;margin-bottom:32px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.dhead{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:center;justify-content:space-between}
+.dtitle{display:flex;align-items:center;gap:12px}
+.dtitle .logo{width:40px;height:40px}
+.dtitle h2{margin:0}
+.dprice{font:600 32px/1.2 var(--sans);font-variant-numeric:tabular-nums}
+.dchg{font-variant-numeric:tabular-nums}
+.dact{display:flex;gap:8px;align-items:center}
+.ranges{display:flex;gap:4px;margin:24px 0 8px}
+.ranges button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:8px 12px;font-weight:600}
+.ranges button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+#readout{color:var(--muted);font-size:14px;min-height:24px;font-variant-numeric:tabular-nums}
+#chartWrap{width:100%}
+#chart{display:block;touch-action:pan-y}
+.gl{stroke:var(--rule);stroke-width:1}
+.axis{fill:var(--muted);font:12px var(--sans)}
+.cline{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.vline{stroke:var(--muted);stroke-width:1}
+.dot{fill:var(--accent)}
+#chartNote{color:var(--muted);font-size:14px}
+.dstats{display:grid;grid-template-columns:1fr;column-gap:32px;margin-top:16px}
+@media (min-width:700px){.dstats{grid-template-columns:1fr 1fr}}
+.srow{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.srow span:first-child{color:var(--muted)}
+.srow span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+
+/* layout + lists */
+h2{font:600 20px/1.3 var(--serif);margin:0 0 8px}
+.layout{display:grid;gap:32px;grid-template-columns:1fr}
+@media (min-width:1000px){.layout{grid-template-columns:minmax(0,1.8fr) minmax(300px,0.8fr)}}
+.cols,.row{display:grid;grid-template-columns:32px minmax(0,1.6fr) minmax(0,1fr) 80px 104px 88px;gap:16px;align-items:center}
+.cols{color:var(--muted);font-size:14px;padding:8px 0;border-bottom:1px solid var(--rule)}
+.row{padding:12px 0;border-bottom:1px solid var(--rule)}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.rk{color:var(--muted);font-variant-numeric:tabular-nums}
+.coin{display:flex;align-items:center;gap:12px;background:none;border:0;padding:0;color:inherit;text-align:left;min-width:0}
+.coin .cn{min-width:0}
+.coin strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coin:hover strong{text-decoration:underline}
+.spark{display:block}
+.sline{fill:none;stroke:var(--ink);stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.sec{margin-bottom:32px}
+.hint{color:var(--muted);font-size:14px;margin-top:8px}
+.more{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px 0}
+@media (max-width:700px){
+  .cols,.row{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 72px;gap:12px}
+  .cols .rk,.cols .spc,.cols .wtc,.row .rk,.row .sp,.row .link{display:none}
+}
+
+/* chat */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:16px}
+@media (min-width:1000px){.chat{position:sticky;top:16px;align-self:start}}
+@media (max-width:999px){.chat{order:-1}}
+#log{height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 0 12px}
+@media (max-width:999px){#log{height:240px}}
+.msg{max-width:90%;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.u{align-self:flex-end;background:var(--accent);color:var(--on-accent);padding:8px 12px;border-radius:12px}
+.msg.a{align-self:flex-start}
+.ask{display:flex;gap:8px;border-top:1px solid var(--rule);padding-top:12px}
+.ask input{flex:1}
+
+details{margin-top:32px;border-top:1px solid var(--rule);padding-top:16px}
+summary{cursor:pointer;font:600 20px/1.3 var(--serif)}
+.set{display:grid;gap:16px;margin-top:16px;max-width:560px}
+.set label{display:grid;gap:4px;font-size:14px;color:var(--muted)}
+footer{color:var(--muted);font-size:14px;margin-top:32px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="brand">Crypto Agent</h1>
+    <p id="status" role="status">Loading prices…</p>
+  </header>
+
+  <section class="banner" aria-label="Market summary">
+    <div class="bgrid">
+      <div>
+        <p class="who" id="heroName">Bitcoin</p>
+        <p class="price" id="heroPrice">—</p>
+        <p class="chg" id="heroChg"></p>
+      </div>
+      <div class="hspark" role="img" aria-label="Bitcoin price over the last 7 days">
+        <p class="cap">Bitcoin, last 7 days</p>
+        <div id="heroSpark"></div>
+      </div>
+    </div>
+    <div class="strip">
+      <div><p class="k">Total market cap</p><p class="v" id="gCap">—</p><p class="s" id="gCapChg"></p></div>
+      <div><p class="k">24-hour volume</p><p class="v" id="gVol">—</p></div>
+      <div><p class="k">Bitcoin dominance</p><p class="v" id="gDom">—</p></div>
+    </div>
+  </section>
+
+  <div class="search" id="searchBox">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="sq" type="text" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list"
+           placeholder="Search any coin by name or symbol" autocomplete="off" aria-label="Search for a coin">
+    <div class="sugg" id="sugg" role="listbox" hidden></div>
+  </div>
+
+  <section class="detail" id="detail" hidden aria-live="polite">
+    <div class="dhead">
+      <div class="dtitle">
+        <img class="logo" id="dImg" alt="" width="40" height="40">
+        <div><h2 id="dName">Coin</h2><p class="muted" id="dSub"></p></div>
+      </div>
+      <div>
+        <p class="dprice" id="dPrice">—</p>
+        <p class="dchg" id="dChg"></p>
+      </div>
+      <div class="dact">
+        <button class="btn" id="dWatch" type="button">Add to watchlist</button>
+        <button class="link" id="dClose" type="button">Close</button>
+      </div>
+    </div>
+    <div class="ranges" role="group" aria-label="Chart range">
+      <button type="button" data-days="1">1 day</button>
+      <button type="button" data-days="7">7 days</button>
+      <button type="button" data-days="30">30 days</button>
+      <button type="button" data-days="90">90 days</button>
+    </div>
+    <p id="readout">Hover over the chart to see the price at a point in time.</p>
+    <div id="chartWrap"><svg id="chart" role="img" aria-label="Price chart"></svg></div>
+    <p id="chartNote"></p>
+    <div class="dstats" id="dStats"></div>
+  </section>
+
+  <div class="layout">
+    <div>
+      <section class="sec" id="wlSec" hidden>
+        <h2>Watchlist</h2>
+        <div class="cols"><span class="rk">#</span><span>Coin</span><span class="num">Price (USD)</span><span class="num">24 hours</span><span class="spc">Last 7 days</span><span class="wtc"></span></div>
+        <div id="wlRows"></div>
+      </section>
+
+      <section class="sec">
+        <h2>Market</h2>
+        <div class="cols"><span class="rk">#</span><span>Coin</span><span class="num">Price (USD)</span><span class="num">24 hours</span><span class="spc">Last 7 days</span><span class="wtc"></span></div>
+        <div id="rows"></div>
+        <div class="more">
+          <p class="hint" id="count"></p>
+          <button class="link" id="moreBtn" type="button">Load 10 more coins</button>
+          <div id="sentinel" aria-hidden="true"></div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="panel chat">
+      <h2>Ask the agent</h2>
+      <div id="log" aria-live="polite"></div>
+      <form class="ask" id="f">
+        <input id="q" placeholder="Ask about any coin" maxlength="500" autocomplete="off" aria-label="Your question">
+        <button class="btn" id="send">Send</button>
+      </form>
+      <p class="hint" id="mode"></p>
+    </aside>
+  </div>
+
+  <details>
+    <summary>Settings</summary>
+    <div class="set">
+      <label>AI key (optional, enables plain-language questions)
+        <input id="llmKey" type="password" autocomplete="off" placeholder="Paste your AI key">
+      </label>
+      <label>AI service address
+        <input id="llmUrl" placeholder="https://api.groq.com/openai/v1">
+      </label>
+      <label>AI model name
+        <input id="llmModel" placeholder="llama-3.3-70b-versatile">
+      </label>
+      <label>CoinGecko key (optional, gives more price requests per minute)
+        <input id="cgKey" type="password" autocomplete="off" placeholder="Paste your CoinGecko Demo key">
+      </label>
+      <p class="hint">Keys are saved only in this browser. Never type keys into a page you don't trust, and never paste them into the code.</p>
+    </div>
+  </details>
+
+  <footer>Prices and charts come from CoinGecko. For information only, not financial advice.</footer>
+</div>
+
+<script>
+(() => {
+const CG = "https://api.coingecko.com/api/v3";
+const CACHE_MS = 25000, MAX_ROUNDS = 4, MAX_HISTORY = 10;
+const FIRST = 20, STEP = 10, MAX_COINS = 100;
+const MQ = "vs_currency=usd&price_change_percentage=24h,7d&sparkline=true";
+const NS = "http://www.w3.org/2000/svg";
+const $ = (s) => document.querySelector(s);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+const fmtPrice = (n) => n == null ? "—" :
+  n.toLocaleString("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2, maximumFractionDigits: n >= 1 ? 2 : n >= 0.01 ? 4 : 6 });
+const fmtCompact = (n) => n == null ? "—" : n.toLocaleString("en-US", { style:"currency", currency:"USD", notation:"compact", maximumFractionDigits:2 });
+const fmtNum = (n) => n == null ? "—" : n.toLocaleString("en-US", { notation:"compact", maximumFractionDigits:2 });
+const fmtPct = (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+const dir = (n) => (n || 0) >= 0 ? "up" : "down";
+const down = (arr, n) => {
+  if (arr.length <= n) return arr;
+  const out = [], step = (arr.length - 1) / (n - 1);
+  for (let i = 0; i < n; i++) out.push(arr[Math.round(i * step)]);
+  return out;
+};
+
+/* ---------- data ---------- */
+const cache = new Map();
+async function cg(path){
+  const hit = cache.get(path);
+  if (hit && Date.now() - hit.t < CACHE_MS) return hit.data;
+  const key = store.get("cgKey", "");
+  const url = CG + path + (key ? (path.includes("?") ? "&" : "?") + "x_cg_demo_api_key=" + encodeURIComponent(key) : "");
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error("status " + res.status);
+  const data = await res.json();
+  cache.set(path, { t: Date.now(), data });
+  return data;
+}
+const markets = (extra) => cg(`/coins/markets?${MQ}&${extra}`);
+
+let coins = [], byId = {}, gdata = null;
+let nextPage = 3, loadingMore = false, backoffUntil = 0;
+let watch = store.get("watch", []);
+let detailId = null, detailDays = store.get("days", 7), chartPts = [];
+
+const ingest = (list) => list.forEach((c) => { byId[c.id] = c; });
+
+function setStatus(text, isErr){ const s = $("#status"); s.textContent = text; s.className = isErr ? "err" : ""; }
+
+/* ---------- sparkline ---------- */
+function spark(prices, w, h2, fluid){
+  const svg = svgEl("svg", { viewBox: `0 0 ${w} ${h2}`, "aria-hidden": "true", class: "spark" });
+  if (fluid) svg.setAttribute("preserveAspectRatio", "none"); else { svg.setAttribute("width", w); svg.setAttribute("height", h2); }
+  if (!prices || prices.length < 2) return svg;
+  const pts = down(prices, 56), pad = 2;
+  const min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+  const d = pts.map((p, i) => (i ? "L" : "M") + (pad + (i / (pts.length - 1)) * (w - 2 * pad)).toFixed(1) + " " + (h2 - pad - ((p - min) / span) * (h2 - 2 * pad)).toFixed(1)).join(" ");
+  svg.appendChild(svgEl("path", { d, class: "sline", "stroke-width": fluid ? 2 : 1.5 }));
+  return svg;
+}
+
+/* ---------- banner ---------- */
+function renderBanner(){
+  const btc = byId.bitcoin;
+  if (btc){
+    $("#heroName").textContent = btc.name;
+    $("#heroPrice").textContent = fmtPrice(btc.current_price);
+    const p = btc.price_change_percentage_24h, el = $("#heroChg");
+    el.className = "chg " + dir(p);
+    el.textContent = (p >= 0 ? "▲ " : "▼ ") + fmtPct(p) + " in 24 hours";
+    const box = $("#heroSpark"); box.textContent = "";
+    box.appendChild(spark(btc.sparkline_in_7d && btc.sparkline_in_7d.price, 480, 96, true));
+  }
+  if (gdata){
+    $("#gCap").textContent = fmtCompact(gdata.total_market_cap && gdata.total_market_cap.usd);
+    const c = gdata.market_cap_change_percentage_24h_usd, el = $("#gCapChg");
+    el.className = "s " + dir(c); el.textContent = c == null ? "" : (c >= 0 ? "▲ " : "▼ ") + fmtPct(c) + " in 24 hours";
+    $("#gVol").textContent = fmtCompact(gdata.total_volume && gdata.total_volume.usd);
+    const dom = gdata.market_cap_percentage && gdata.market_cap_percentage.btc;
+    $("#gDom").textContent = dom == null ? "—" : dom.toFixed(1) + "%";
+  }
+}
+
+/* ---------- lists ---------- */
+function makeRow(c){
+  const row = h("div", "row");
+  const rank = h("div", "rk", c.market_cap_rank == null ? "" : String(c.market_cap_rank));
+  const nm = h("button", "coin"); nm.type = "button"; nm.setAttribute("aria-label", "Open " + c.name + " chart and statistics");
+  if (c.image){ const img = h("img", "logo"); img.src = c.image; img.alt = ""; img.width = 28; img.height = 28; img.loading = "lazy"; img.onerror = () => img.remove(); nm.appendChild(img); }
+  const t = h("span", "cn"); t.append(h("strong", null, c.name), h("span", "sym", c.symbol.toUpperCase())); nm.appendChild(t);
+  nm.onclick = () => openDetail(c.id);
+  const pr = h("div", "num", fmtPrice(c.current_price));
+  const ch = h("div", "num " + dir(c.price_change_percentage_24h), fmtPct(c.price_change_percentage_24h));
+  const sp = h("div", "sp"); sp.appendChild(spark(c.sparkline_in_7d && c.sparkline_in_7d.price, 96, 28, false));
+  const on = watch.includes(c.id);
+  const w = h("button", "link" + (on ? " on" : ""), on ? "Watching" : "Watch"); w.type = "button";
+  w.setAttribute("aria-pressed", on ? "true" : "false"); w.setAttribute("aria-label", (on ? "Stop watching " : "Watch ") + c.name);
+  w.onclick = () => toggleWatch(c.id);
+  row.append(rank, nm, pr, ch, sp, w);
+  return row;
+}
+
+function renderLists(){
+  const wl = watch.map((id) => byId[id]).filter(Boolean);
+  $("#wlSec").hidden = !wl.length;
+  const wb = $("#wlRows"); wb.textContent = ""; wl.forEach((c) => wb.appendChild(makeRow(c)));
+  const mb = $("#rows"); mb.textContent = ""; coins.forEach((c) => mb.appendChild(makeRow(c)));
+  const atEnd = coins.length >= MAX_COINS;
+  $("#count").textContent = atEnd ? `Showing the top ${coins.length} coins by market cap.` : `Showing the top ${coins.length} coins by market cap. Scroll for more.`;
+  $("#moreBtn").hidden = atEnd;
+}
+
+function toggleWatch(id){
+  watch = watch.includes(id) ? watch.filter((x) => x !== id) : [...watch, id];
+  store.set("watch", watch); renderLists(); renderDetailHead();
+}
+
+async function loadMore(force){
+  if (loadingMore || coins.length >= MAX_COINS) return;
+  if (!force && Date.now() < backoffUntil) return;
+  loadingMore = true;
+  try {
+    const list = await markets(`order=market_cap_desc&per_page=${STEP}&page=${nextPage}`);
+    const have = new Set(coins.map((c) => c.id));
+    ingest(list); list.forEach((c) => { if (!have.has(c.id)) coins.push(c); });
+    nextPage++; renderLists();
+  } catch (e){
+    backoffUntil = Date.now() + 20000;
+    setStatus("Couldn't load more coins (" + e.message + "). Wait a few seconds, then choose “Load 10 more coins”.", true);
+  }
+  loadingMore = false;
+}
+$("#moreBtn").onclick = () => loadMore(true);
+if ("IntersectionObserver" in window){
+  new IntersectionObserver((es) => { if (es[0].isIntersecting && coins.length) loadMore(false); }, { rootMargin: "400px" }).observe($("#sentinel"));
+}
+
+async function refresh(){
+  try {
+    let list;
+    if (!coins.length){
+      list = await markets(`order=market_cap_desc&per_page=${FIRST}&page=1`);
+      ingest(list); coins = list.slice();
+      const missing = watch.filter((id) => !byId[id]);
+      if (missing.length) ingest(await markets(`ids=${encodeURIComponent(missing.join(","))}&per_page=250&page=1`));
+    } else {
+      const ids = [...new Set(["bitcoin", ...coins.map((c) => c.id), ...watch, ...(detailId ? [detailId] : [])])];
+      list = await markets(`ids=${encodeURIComponent(ids.join(","))}&order=market_cap_desc&per_page=250&page=1`);
+      ingest(list); coins = coins.map((c) => byId[c.id] || c);
+    }
+    try { const g = await cg("/global"); gdata = g && g.data; } catch {}
+    renderBanner(); renderLists(); renderDetailHead();
+    setStatus("Live. Updated " + new Date().toLocaleTimeString() + ". Refreshes every 30 seconds.", false);
+  } catch (e){
+    setStatus("Couldn't load prices (" + e.message + "). Check your internet connection. Without a key, CoinGecko allows only a few requests a minute, so wait a minute or add a CoinGecko key in Settings.", true);
+  }
+}
+
+/* ---------- detail ---------- */
+function renderDetailHead(){
+  const c = byId[detailId]; if (!c || $("#detail").hidden) return;
+  const img = $("#dImg"); if (c.image){ img.src = c.image; img.hidden = false; } else img.hidden = true;
+  $("#dName").textContent = c.name;
+  $("#dSub").textContent = c.symbol.toUpperCase() + (c.market_cap_rank ? ", rank " + c.market_cap_rank : "");
+  $("#dPrice").textContent = fmtPrice(c.current_price);
+  const p = c.price_change_percentage_24h, el = $("#dChg");
+  el.className = "dchg " + dir(p); el.textContent = (p >= 0 ? "▲ " : "▼ ") + fmtPct(p) + " in 24 hours";
+  const on = watch.includes(c.id);
+  $("#dWatch").textContent = on ? "Remove from watchlist" : "Add to watchlist";
+  const rows = [
+    ["Market cap", fmtCompact(c.market_cap)],
+    ["24-hour volume", fmtCompact(c.total_volume)],
+    ["24-hour high", fmtPrice(c.high_24h)],
+    ["24-hour low", fmtPrice(c.low_24h)],
+    ["7-day change", fmtPct(c.price_change_percentage_7d_in_currency), dir(c.price_change_percentage_7d_in_currency)],
+    ["Circulating supply", fmtNum(c.circulating_supply) + " " + c.symbol.toUpperCase()],
+    ["All-time high", fmtPrice(c.ath) + " (" + fmtPct(c.ath_change_percentage) + ")"],
+    ["Market cap rank", c.market_cap_rank ? "#" + c.market_cap_rank : "—"]
+  ];
+  const box = $("#dStats"); box.textContent = "";
+  rows.forEach(([k, v, cls]) => { const r = h("div", "srow"); r.append(h("span", null, k), h("span", cls || "", v)); box.appendChild(r); });
+}
+
+function openDetail(id){
+  detailId = id;
+  const d = $("#detail"); d.hidden = false;
+  const go = () => {
+    renderDetailHead(); markRanges(); loadChart();
+    d.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
+  };
+  if (byId[id]) return go();
+  $("#dName").textContent = "Loading…"; $("#dPrice").textContent = ""; $("#dChg").textContent = ""; $("#dStats").textContent = "";
+  markets(`ids=${encodeURIComponent(id)}&per_page=1&page=1`).then((l) => {
+    if (l[0]){ ingest(l); go(); } else { $("#dName").textContent = "No data for this coin."; }
+  }).catch((e) => { $("#dName").textContent = "Couldn't load this coin (" + e.message + "). Try again in a minute."; });
+}
+$("#dClose").onclick = () => { $("#detail").hidden = true; detailId = null; };
+$("#dWatch").onclick = () => { if (detailId) toggleWatch(detailId); };
+
+function markRanges(){
+  document.querySelectorAll(".ranges button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.days) === detailDays)));
+}
+document.querySelectorAll(".ranges button").forEach((b) => b.onclick = () => {
+  detailDays = Number(b.dataset.days); store.set("days", detailDays); markRanges(); loadChart();
+});
+
+async function loadChart(){
+  const id = detailId, days = detailDays, note = $("#chartNote");
+  note.textContent = "Loading chart…";
+  try {
+    const d = await cg(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`);
+    if (id !== detailId || days !== detailDays) return;
+    chartPts = down(d.prices || [], 240); note.textContent = ""; drawChart();
+  } catch (e){
+    if (id !== detailId) return;
+    chartPts = []; $("#chart").textContent = "";
+    note.textContent = "Couldn't load the chart (" + e.message + "). Wait a minute, then choose a range again.";
+  }
+}
+
+function drawChart(){
+  const svg = $("#chart"); svg.textContent = "";
+  if (chartPts.length < 2) return;
+  const W = Math.max($("#chartWrap").clientWidth, 280), H = 280;
+  const padL = W < 480 ? 60 : 76, padR = 8, padT = 12, padB = 28;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const ts = chartPts.map((p) => p[0]), vs = chartPts.map((p) => p[1]);
+  const t0 = ts[0], t1 = ts[ts.length - 1];
+  let min = Math.min(...vs), max = Math.max(...vs); if (min === max){ min *= 0.999; max *= 1.001; }
+  const X = (t) => padL + (t - t0) / (t1 - t0 || 1) * (W - padL - padR);
+  const Y = (v) => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
+  const axisFmt = (v) => v.toLocaleString("en-US", { style:"currency", currency:"USD", notation: v >= 10000 ? "compact" : "standard", maximumFractionDigits: v >= 100 ? 0 : v >= 1 ? 2 : 6 });
+  [max, (max + min) / 2, min].forEach((v) => {
+    svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: Y(v), y2: Y(v), class: "gl" }));
+    const t = svgEl("text", { x: padL - 8, y: Y(v) + 4, "text-anchor": "end", class: "axis" }); t.textContent = axisFmt(v); svg.appendChild(t);
+  });
+  const fmtT = (t) => detailDays === 1 ? new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const a = svgEl("text", { x: padL, y: H - 8, "text-anchor": "start", class: "axis" }); a.textContent = fmtT(t0); svg.appendChild(a);
+  const b = svgEl("text", { x: W - padR, y: H - 8, "text-anchor": "end", class: "axis" }); b.textContent = fmtT(t1); svg.appendChild(b);
+  svg.appendChild(svgEl("path", { d: chartPts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" "), class: "cline" }));
+  const vline = svgEl("line", { y1: padT, y2: H - padB, class: "vline" }), dot = svgEl("circle", { r: 5, class: "dot" });
+  vline.style.display = dot.style.display = "none"; svg.append(vline, dot);
+  const readout = $("#readout"), idle = "Hover over the chart to see the price at a point in time.";
+  readout.textContent = idle;
+  svg.onpointermove = (e) => {
+    const x = e.clientX - svg.getBoundingClientRect().left;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < chartPts.length; i++){ const dd = Math.abs(X(chartPts[i][0]) - x); if (dd < bd){ bd = dd; best = i; } }
+    const p = chartPts[best], px = X(p[0]), py = Y(p[1]);
+    vline.setAttribute("x1", px); vline.setAttribute("x2", px); dot.setAttribute("cx", px); dot.setAttribute("cy", py);
+    vline.style.display = dot.style.display = "";
+    readout.textContent = fmtPrice(p[1]) + " on " + new Date(p[0]).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  };
+  svg.onpointerleave = () => { vline.style.display = dot.style.display = "none"; readout.textContent = idle; };
+}
+let rsT = 0;
+window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(() => { if (!$("#detail").hidden) drawChart(); }, 150); });
+
+/* ---------- search ---------- */
+const sq = $("#sq"), sugg = $("#sugg");
+let items = [], sel = -1, sMsg = "", sTimer = 0, sSeq = 0;
+
+function renderSugg(){
+  sugg.textContent = "";
+  const has = items.length > 0 || !!sMsg;
+  sugg.hidden = !has; sq.setAttribute("aria-expanded", has ? "true" : "false");
+  if (!items.length){ if (sMsg) sugg.appendChild(h("div", "smsg", sMsg)); sq.removeAttribute("aria-activedescendant"); return; }
+  items.forEach((it, i) => {
+    const o = h("div", "opt"); o.id = "opt" + i; o.setAttribute("role", "option"); o.setAttribute("aria-selected", i === sel ? "true" : "false");
+    if (it.image){ const img = h("img", "logo sm"); img.src = it.image; img.alt = ""; img.width = 24; img.height = 24; img.onerror = () => img.remove(); o.appendChild(img); }
+    const t = h("span", "otxt"); t.append(h("strong", null, it.name), h("span", "sym", it.symbol.toUpperCase())); o.appendChild(t);
+    if (it.rank) o.appendChild(h("span", "orank", "Rank " + it.rank));
+    o.onclick = () => choose(it);
+    sugg.appendChild(o);
+  });
+  if (sel >= 0) sq.setAttribute("aria-activedescendant", "opt" + sel); else sq.removeAttribute("aria-activedescendant");
+}
+function closeSugg(){ items = []; sel = -1; sMsg = ""; renderSugg(); }
+function choose(it){ sq.value = ""; closeSugg(); openDetail(it.id); }
+
+sq.addEventListener("input", () => {
+  clearTimeout(sTimer);
+  const q = sq.value.trim(), ql = q.toLowerCase();
+  sel = -1; sMsg = "";
+  if (!q){ closeSugg(); return; }
+  const local = Object.values(byId).filter((c) => c.name.toLowerCase().includes(ql) || c.symbol.toLowerCase().startsWith(ql))
+    .slice(0, 6).map((c) => ({ id: c.id, name: c.name, symbol: c.symbol, rank: c.market_cap_rank, image: c.image }));
+  items = local; renderSugg();
+  if (q.length < 2) return;
+  const seq = ++sSeq;
+  sTimer = setTimeout(async () => {
+    try {
+      const r = await cg("/search?query=" + encodeURIComponent(q));
+      if (seq !== sSeq) return;
+      const seen = new Set(local.map((i) => i.id));
+      const remote = (r.coins || []).slice(0, 8).filter((c) => !seen.has(c.id)).map((c) => ({ id: c.id, name: c.name, symbol: c.symbol, rank: c.market_cap_rank, image: c.thumb }));
+      items = [...local, ...remote].slice(0, 10);
+      sMsg = items.length ? "" : `No coins found for “${q}”. Try the full name.`;
+      renderSugg();
+    } catch (e){
+      if (seq !== sSeq) return;
+      sMsg = items.length ? "" : "Search isn't available right now (" + e.message + "). Try again in a minute.";
+      renderSugg();
+    }
+  }, 350);
+});
+sq.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown"){ e.preventDefault(); if (items.length){ sel = (sel + 1) % items.length; renderSugg(); } }
+  else if (e.key === "ArrowUp"){ e.preventDefault(); if (items.length){ sel = (sel - 1 + items.length) % items.length; renderSugg(); } }
+  else if (e.key === "Enter"){ e.preventDefault(); const it = items[sel >= 0 ? sel : 0]; if (it) choose(it); }
+  else if (e.key === "Escape"){ closeSugg(); }
+});
+document.addEventListener("click", (e) => { if (!$("#searchBox").contains(e.target)) closeSugg(); });
+
+/* ---------- agent ---------- */
+const tools = {
+  async get_price({ ids, currency = "usd" }){
+    const list = String(ids || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10);
+    if (!list.length) return { error: "No coin ids given" };
+    const cur = String(currency).toLowerCase();
+    const data = await cg(`/simple/price?ids=${encodeURIComponent(list.join(","))}&vs_currencies=${encodeURIComponent(cur)}&include_24hr_change=true&include_last_updated_at=true`);
+    return { source: "CoinGecko", currency: cur, data };
+  },
+  async search_coin({ query }){
+    const d = await cg("/search?query=" + encodeURIComponent(String(query || "")));
+    return (d.coins || []).slice(0, 5).map((c) => ({ id: c.id, name: c.name, symbol: c.symbol, rank: c.market_cap_rank }));
+  },
+  async top_markets({ limit = 10, currency = "usd" }){
+    const n = Math.min(Math.max(parseInt(limit) || 10, 1), 20);
+    const d = await cg(`/coins/markets?vs_currency=${encodeURIComponent(String(currency).toLowerCase())}&order=market_cap_desc&per_page=${n}&page=1`);
+    return d.map((c) => ({ id: c.id, symbol: c.symbol, price: c.current_price, change_24h_pct: c.price_change_percentage_24h, market_cap: c.market_cap }));
+  }
+};
+const toolDefs = [
+  { type:"function", function:{ name:"get_price", description:"Current price and 24h change for coins by CoinGecko id (e.g. bitcoin, ethereum).", parameters:{ type:"object", properties:{ ids:{type:"string",description:"Comma-separated CoinGecko ids"}, currency:{type:"string"} }, required:["ids"] } } },
+  { type:"function", function:{ name:"search_coin", description:"Find CoinGecko ids from a coin name or symbol.", parameters:{ type:"object", properties:{ query:{type:"string"} }, required:["query"] } } },
+  { type:"function", function:{ name:"top_markets", description:"Top coins by market cap with price and 24h change.", parameters:{ type:"object", properties:{ limit:{type:"integer"}, currency:{type:"string"} } } } }
+];
+const SYSTEM = `You are a crypto market assistant.
+- Use tools for every price, 24h change, or market-cap figure. Never guess or use memory for numbers.
+- If a tool fails, say so plainly.
+- If a coin name is unclear, call search_coin first.
+- Mention the source (CoinGecko) and that data is near real-time.
+- Keep answers short: the number first, then one line of context.
+- Do not give buy/sell/hold advice or price predictions. Note that crypto is volatile and this is not financial advice.
+- Never ask for or handle wallet keys or seed phrases.`;
+
+async function llm(messages){
+  const base = (store.get("llmUrl", "") || "https://api.groq.com/openai/v1").replace(/\/+$/, "");
+  const model = store.get("llmModel", "") || "llama-3.3-70b-versatile";
+  const res = await fetch(base + "/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + store.get("llmKey", "") },
+    body: JSON.stringify({ model, messages, tools: toolDefs, tool_choice: "auto", temperature: 0.2 })
+  });
+  if (!res.ok) throw new Error("AI service returned status " + res.status);
+  return (await res.json()).choices[0].message;
+}
+
+const history = [];
+async function agent(){
+  const messages = [{ role:"system", content: SYSTEM }, ...history.slice(-MAX_HISTORY)];
+  for (let i = 0; i < MAX_ROUNDS; i++){
+    const msg = await llm(messages);
+    if (!msg.tool_calls || !msg.tool_calls.length) return msg.content || "";
+    messages.push(msg);
+    for (const call of msg.tool_calls){
+      let result;
+      try {
+        const args = JSON.parse(call.function.arguments || "{}");
+        const fn = tools[call.function.name];
+        result = fn ? await fn(args) : { error: "Unknown tool" };
+      } catch (e){ result = { error: String(e.message || e) }; }
+      messages.push({ role:"tool", tool_call_id: call.id, content: JSON.stringify(result) });
+    }
+  }
+  return "I couldn't finish that lookup. Try a simpler question.";
+}
+
+/* Works without an AI key: treats the question as a coin name. */
+async function simple(text){
+  const q = text.replace(/\b(what|whats|what's|is|the|price|prices|of|for|how|much|does|cost|current|now|a|an|in|usd|please|show|me|tell|about)\b/gi, " ").replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim();
+  if (!q) return "Type a coin name, for example: bitcoin or solana.";
+  const found = await tools.search_coin({ query: q });
+  if (!found.length) return `I couldn't find a coin called "${q}". Try the full name, like "cardano".`;
+  const d = await cg(`/coins/markets?vs_currency=usd&ids=${encodeURIComponent(found[0].id)}&price_change_percentage=24h`);
+  const c = d[0];
+  if (!c) return "No price data came back for " + found[0].name + ". Try again in a minute.";
+  return `${c.name} (${c.symbol.toUpperCase()}) is ${fmtPrice(c.current_price)}, ${fmtPct(c.price_change_percentage_24h)} over 24 hours.\nSource: CoinGecko, ${new Date().toLocaleTimeString()}.`;
+}
+
+/* ---------- chat UI ---------- */
+function addMsg(cls, text){
+  const d = h("div", "msg " + cls, text);
+  const log = $("#log"); log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+function updateMode(){
+  $("#mode").textContent = store.get("llmKey", "")
+    ? "AI mode is on. Ask in plain language, like “compare ETH and SOL”."
+    : "Basic mode: type a coin name to see its price. Add an AI key in Settings to ask full questions.";
+}
+$("#f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("#q").value.trim(); if (!text) return;
+  $("#q").value = ""; addMsg("u", text);
+  const btn = $("#send"); btn.disabled = true;
+  const wait = addMsg("a", "Checking prices…");
+  try {
+    let reply;
+    if (store.get("llmKey", "")){ history.push({ role:"user", content:text.slice(0, 500) }); reply = await agent(); history.push({ role:"assistant", content: reply }); }
+    else { reply = await simple(text); }
+    wait.textContent = reply;
+  } catch (err){
+    wait.textContent = "That didn't work: " + (err.message || err) + ". Check your keys in Settings and your internet connection, then try again.";
+  }
+  btn.disabled = false; $("#q").focus();
+});
+
+/* ---------- settings ---------- */
+[["llmKey","#llmKey"],["llmUrl","#llmUrl"],["llmModel","#llmModel"],["cgKey","#cgKey"]].forEach(([k, sel2]) => {
+  const el = $(sel2); el.value = store.get(k, "");
+  el.addEventListener("change", () => { store.set(k, el.value.trim()); updateMode(); if (k === "cgKey") refresh(); });
+});
+
+addMsg("a", "Ask me about any coin. I'll look up the latest price.");
+updateMode(); markRanges(); refresh(); setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>
